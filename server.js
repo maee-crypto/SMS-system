@@ -16,9 +16,21 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"],
-    credentials: true
+    origin: [
+      'http://localhost:3000',
+      'https://sms-system-git-main-maee.vercel.app',
+      'https://sms-system-maee.vercel.app',
+      'https://sms-system.vercel.app'
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'X-Requested-With',
+      'Accept',
+      'Origin'
+    ]
   }
 });
 
@@ -31,7 +43,18 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "ws:", "wss:", "http://localhost:3000", "http://localhost:5001", "http://localhost:5002"]
+      connectSrc: [
+        "'self'", 
+        "ws:", 
+        "wss:", 
+        "http://localhost:3000", 
+        "http://localhost:5001", 
+        "http://localhost:5002",
+        "https://sms-system-git-main-maee.vercel.app",
+        "https://sms-system-maee.vercel.app",
+        "https://sms-system.vercel.app",
+        "https://sms-system-na28.onrender.com"
+      ]
     }
   }
 }));
@@ -47,14 +70,49 @@ app.use('/api/', limiter);
 // Middleware
 app.use(compression());
 app.use(morgan('combined'));
+// CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://sms-system-git-main-maee.vercel.app',
+  'https://sms-system-maee.vercel.app',
+  'https://sms-system.vercel.app'
+];
+
+// Add environment variable for additional origins
+if (process.env.CLIENT_URL) {
+  allowedOrigins.push(process.env.CLIENT_URL);
+}
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
+  ],
+  exposedHeaders: ['Content-Length', 'X-Requested-With']
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Handle CORS preflight requests
+app.options('*', cors());
 
 // Database connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/phishing-simulation', {
@@ -106,6 +164,21 @@ app.get('/api/ping', (req, res) => {
     message: 'Manual ping successful!',
     serverTime: new Date().toLocaleString(),
     uptime: process.uptime()
+  });
+});
+
+// CORS test endpoint
+app.get('/api/cors-test', (req, res) => {
+  res.json({
+    message: 'CORS is working correctly!',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString(),
+    allowedOrigins: [
+      'http://localhost:3000',
+      'https://sms-system-git-main-maee.vercel.app',
+      'https://sms-system-maee.vercel.app',
+      'https://sms-system.vercel.app'
+    ]
   });
 });
 

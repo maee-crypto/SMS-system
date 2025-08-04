@@ -2,9 +2,11 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-// Set up axios base URL - use relative URLs to work with proxy
+// Set up axios base URL - use environment variable for production
 const API_BASE_URL = process.env.REACT_APP_API_URL || '';
-axios.defaults.baseURL = API_BASE_URL;
+if (API_BASE_URL) {
+  axios.defaults.baseURL = API_BASE_URL;
+}
 
 const AuthContext = createContext();
 
