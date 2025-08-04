@@ -8,6 +8,8 @@ const morgan = require('morgan');
 const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
+const https = require('https');
+const http2 = require('http');
 require('dotenv').config();
 
 const app = express();
@@ -78,6 +80,101 @@ app.get('/api/disclaimer', (req, res) => {
   });
 });
 
+// Keep-alive endpoint to prevent server from going idle on Render
+app.get('/api/keep-alive', (req, res) => {
+  const timestamp = new Date().toISOString();
+  console.log(`Keep-alive ping at ${timestamp}`);
+  
+  res.json({
+    status: 'alive',
+    timestamp: timestamp,
+    message: 'Server is running and will stay awake!',
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    pingCount: global.pingCount || 0
+  });
+});
+
+// Manual ping endpoint for testing
+app.get('/api/ping', (req, res) => {
+  const timestamp = new Date().toISOString();
+  console.log(`Manual ping at ${timestamp}`);
+  
+  res.json({
+    status: 'pong',
+    timestamp: timestamp,
+    message: 'Manual ping successful!',
+    serverTime: new Date().toLocaleString(),
+    uptime: process.uptime()
+  });
+});
+
+// Self-pinging function to keep server alive
+function pingSelf() {
+  const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5001}`;
+  const pingUrl = `${baseUrl}/api/keep-alive`;
+  
+  // Increment ping count
+  global.pingCount = (global.pingCount || 0) + 1;
+  
+  console.log(`Pinging self at: ${pingUrl} (ping #${global.pingCount})`);
+  
+  const protocol = baseUrl.startsWith('https') ? https : http2;
+  
+  protocol.get(pingUrl, (res) => {
+    let data = '';
+    res.on('data', (chunk) => {
+      data += chunk;
+    });
+    res.on('end', () => {
+      console.log(`Self-ping successful: ${res.statusCode} - Ping #${global.pingCount}`);
+    });
+  }).on('error', (err) => {
+    console.error(`Self-ping failed (ping #${global.pingCount}):`, err.message);
+  });
+}
+
+// Start self-pinging every 5 minutes (300,000 ms)
+const PING_INTERVAL = 5 * 60 * 1000; // 5 minutes
+let pingInterval;
+
+function startKeepAlive() {
+  // Initial ping after 30 seconds
+  setTimeout(() => {
+    pingSelf();
+    // Start regular pinging
+    pingInterval = setInterval(pingSelf, PING_INTERVAL);
+    console.log(`Keep-alive system started. Pinging every ${PING_INTERVAL / 1000} seconds`);
+  }, 30000);
+}
+
+// Stop keep-alive function
+function stopKeepAlive() {
+  if (pingInterval) {
+    clearInterval(pingInterval);
+    console.log('Keep-alive system stopped');
+  }
+}
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  stopKeepAlive();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  stopKeepAlive();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'client/build')));
@@ -123,4 +220,12 @@ const PORT = process.env.PORT || 5001;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  // Start keep-alive system only in production
+  if (process.env.NODE_ENV === 'production') {
+    startKeepAlive();
+    console.log('Keep-alive system enabled for production');
+  } else {
+    console.log('Keep-alive system disabled in development');
+  }
 }); 
