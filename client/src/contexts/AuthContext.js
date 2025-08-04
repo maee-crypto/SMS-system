@@ -8,6 +8,8 @@ axios.defaults.baseURL = API_BASE_URL;
 
 const AuthContext = createContext();
 
+export { AuthContext };
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
