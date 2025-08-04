@@ -114,13 +114,43 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Handle CORS preflight requests
 app.options('*', cors());
 
-// Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/phishing-simulation', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+// Import seeder
+const { seedDatabase } = require('./seed-data/seed');
+
+// Database connection and seeding
+async function initializeDatabase() {
+  try {
+    console.log('Connecting to MongoDB...');
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/phishing-simulation', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('MongoDB connected successfully');
+
+    // Check if we should seed the database
+    const shouldSeed = process.env.SEED_DATABASE === 'true' || process.env.NODE_ENV === 'development';
+    
+    if (shouldSeed) {
+      console.log('Starting database seeding...');
+      try {
+        await seedDatabase();
+        console.log('Database seeding completed successfully!');
+      } catch (seedError) {
+        console.error('Database seeding failed:', seedError.message);
+        // Don't fail the server startup if seeding fails
+      }
+    } else {
+      console.log('Database seeding skipped (SEED_DATABASE not set to true)');
+    }
+
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    process.exit(1);
+  }
+}
+
+// Initialize database
+initializeDatabase();
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -180,6 +210,65 @@ app.get('/api/cors-test', (req, res) => {
       'https://sms-system.vercel.app'
     ]
   });
+});
+
+// Database status endpoint
+app.get('/api/admin/database-status', async (req, res) => {
+  try {
+    const Simulation = require('./models/Simulation');
+    const FakeWebsite = require('./models/FakeWebsite');
+    const User = require('./models/User');
+    
+    const simulationCount = await Simulation.countDocuments();
+    const fakeWebsiteCount = await FakeWebsite.countDocuments();
+    const userCount = await User.countDocuments();
+    
+    res.json({
+      success: true,
+      databaseStatus: {
+        simulations: simulationCount,
+        fakeWebsites: fakeWebsiteCount,
+        users: userCount,
+        needsSeeding: simulationCount === 0 && fakeWebsiteCount === 0
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Database status check failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Database status check failed',
+      error: error.message
+    });
+  }
+});
+
+// Manual database seeding endpoint (admin only)
+app.post('/api/admin/seed-database', async (req, res) => {
+  try {
+    // Check if user is admin (you can add authentication middleware here)
+    console.log('Manual database seeding requested');
+    
+    await seedDatabase();
+    
+    res.json({
+      success: true,
+      message: 'Database seeded successfully!',
+      timestamp: new Date().toISOString(),
+      dataCreated: {
+        simulations: 5, // Update with actual count
+        fakeWebsites: 3, // Update with actual count
+        adminUser: 1
+      }
+    });
+  } catch (error) {
+    console.error('Manual seeding failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Database seeding failed',
+      error: error.message
+    });
+  }
 });
 
 // Self-pinging function to keep server alive

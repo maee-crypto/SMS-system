@@ -638,12 +638,15 @@ const sampleAdminUser = {
 // Seed function
 async function seedDatabase() {
   try {
-    console.log('Connecting to MongoDB...');
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/phishing-simulation', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log('Connected to MongoDB');
+    // Check if already connected
+    if (mongoose.connection.readyState !== 1) {
+      console.log('Connecting to MongoDB...');
+      await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/phishing-simulation', {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      });
+      console.log('Connected to MongoDB');
+    }
 
     // Clear existing data
     console.log('Clearing existing data...');
@@ -694,9 +697,7 @@ async function seedDatabase() {
 
   } catch (error) {
     console.error('Error seeding database:', error);
-  } finally {
-    await mongoose.disconnect();
-    console.log('Disconnected from MongoDB');
+    throw error; // Re-throw to let the server handle it
   }
 }
 
