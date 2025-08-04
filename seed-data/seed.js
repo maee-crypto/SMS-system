@@ -635,6 +635,23 @@ const sampleAdminUser = {
   isActive: true
 };
 
+// Sample student user
+const sampleStudentUser = {
+  username: 'student',
+  email: 'student@example.com',
+  password: 'student123',
+  role: 'student',
+  organization: 'Security Training Program',
+  isActive: true,
+  profile: {
+    firstName: 'John',
+    lastName: 'Student',
+    phone: '+1234567890',
+    department: 'Computer Science',
+    yearOfStudy: 3
+  }
+};
+
 // Seed function
 async function seedDatabase() {
   try {
@@ -652,17 +669,31 @@ async function seedDatabase() {
     console.log('Clearing existing data...');
     await Simulation.deleteMany({});
     await FakeWebsite.deleteMany({});
-    await User.deleteMany({ email: sampleAdminUser.email });
+    await User.deleteMany({ 
+      email: { 
+        $in: [sampleAdminUser.email, sampleStudentUser.email] 
+      } 
+    });
 
     // Create admin user
     console.log('Creating admin user...');
-    const hashedPassword = await bcrypt.hash(sampleAdminUser.password, 12);
+    const hashedAdminPassword = await bcrypt.hash(sampleAdminUser.password, 12);
     const adminUser = new User({
       ...sampleAdminUser,
-      password: hashedPassword
+      password: hashedAdminPassword
     });
     await adminUser.save();
     console.log('Admin user created:', adminUser.email);
+
+    // Create student user
+    console.log('Creating student user...');
+    const hashedStudentPassword = await bcrypt.hash(sampleStudentUser.password, 12);
+    const studentUser = new User({
+      ...sampleStudentUser,
+      password: hashedStudentPassword
+    });
+    await studentUser.save();
+    console.log('Student user created:', studentUser.email);
 
     // Create fake websites
     console.log('Creating fake website templates...');
@@ -690,10 +721,14 @@ async function seedDatabase() {
     console.log('\nAdmin credentials:');
     console.log('Email:', sampleAdminUser.email);
     console.log('Password:', sampleAdminUser.password);
+    console.log('\nStudent credentials:');
+    console.log('Email:', sampleStudentUser.email);
+    console.log('Password:', sampleStudentUser.password);
     console.log('\nSample data created:');
     console.log('- Simulations:', sampleSimulations.length);
     console.log('- Fake websites:', sampleFakeWebsites.length);
     console.log('- Admin user: 1');
+    console.log('- Student user: 1');
 
   } catch (error) {
     console.error('Error seeding database:', error);
@@ -706,4 +741,4 @@ if (require.main === module) {
   seedDatabase();
 }
 
-module.exports = { seedDatabase, sampleSimulations, sampleFakeWebsites, sampleAdminUser }; 
+module.exports = { seedDatabase, sampleSimulations, sampleFakeWebsites, sampleAdminUser, sampleStudentUser }; 

@@ -258,7 +258,8 @@ app.post('/api/admin/seed-database', async (req, res) => {
       dataCreated: {
         simulations: 5, // Update with actual count
         fakeWebsites: 3, // Update with actual count
-        adminUser: 1
+        adminUser: 1,
+        studentUser: 1
       }
     });
   } catch (error) {
