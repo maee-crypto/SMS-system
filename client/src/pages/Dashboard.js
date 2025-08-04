@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { AuthContext } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { simulationsAPI, analyticsAPI } from '../services/api';
 import { apiUtils } from '../services/api';
 import PageHeader from '../components/ui/PageHeader';
@@ -10,7 +10,7 @@ import LearningResources from '../components/dashboard/LearningResources';
 import RecentActivity from '../components/dashboard/RecentActivity';
 
 const Dashboard = () => {
-  const { user } = useContext(AuthContext);
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState({
