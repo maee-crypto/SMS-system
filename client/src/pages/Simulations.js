@@ -1,233 +1,243 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
+import { AuthContext } from '../contexts/AuthContext';
+import { simulationsAPI } from '../services/api';
+import { apiUtils } from '../services/api';
+import PageHeader from '../components/ui/PageHeader';
+import ModuleCard from '../components/ui/ModuleCard';
 
 const Simulations = () => {
+  const { user } = useContext(AuthContext);
   const [simulations, setSimulations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filters, setFilters] = useState({
+    type: '',
+    difficulty: '',
+    platform: ''
+  });
 
   useEffect(() => {
-    // Mock data - replace with API call
-    setSimulations([
-      {
-        id: 1,
-        title: 'MetaMask Wallet Security Alert',
-        description: 'Learn to identify fake wallet security notifications and protect your cryptocurrency assets',
-        type: 'wallet-phishing',
-        difficulty: 'Medium',
-        duration: '10-15 min',
-        completed: false,
-        icon: '🔐',
-        color: 'blue'
-      },
-      {
-        id: 2,
-        title: 'Bank Login Verification',
-        description: 'Practice recognizing fake banking websites and secure login processes',
-        type: 'sms-website-call',
-        difficulty: 'Easy',
-        duration: '5-10 min',
-        completed: true,
-        icon: '🏦',
-        color: 'green'
-      },
-      {
-        id: 3,
-        title: 'Email Phishing Test',
-        description: 'Master email security and spot sophisticated phishing emails',
-        type: 'email-phishing',
-        difficulty: 'Hard',
-        duration: '15-20 min',
-        completed: false,
-        icon: '📧',
-        color: 'purple'
-      },
-      {
-        id: 4,
-        title: 'SMS Phishing Attack',
-        description: 'Learn to identify suspicious text messages and smishing attempts',
-        type: 'sms-phishing',
-        difficulty: 'Medium',
-        duration: '8-12 min',
-        completed: false,
-        icon: '📱',
-        color: 'orange'
-      },
-      {
-        id: 5,
-        title: 'Voice Phishing (Vishing)',
-        description: 'Understand vishing tactics and phone-based social engineering',
-        type: 'voice-phishing',
-        difficulty: 'Hard',
-        duration: '12-18 min',
-        completed: false,
-        icon: '📞',
-        color: 'red'
-      },
-      {
-        id: 6,
-        title: 'Social Media Scam',
-        description: 'Recognize fake social media profiles and malicious links',
-        type: 'social-media',
-        difficulty: 'Easy',
-        duration: '6-10 min',
-        completed: true,
-        icon: '📱',
-        color: 'indigo'
-      }
-    ]);
-    setLoading(false);
-  }, []);
+    fetchSimulations();
+  }, [filters]);
 
-  const getDifficultyColor = (difficulty) => {
-    switch (difficulty.toLowerCase()) {
-      case 'easy': return 'green';
-      case 'medium': return 'yellow';
-      case 'hard': return 'red';
-      default: return 'gray';
+  const fetchSimulations = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = {};
+      if (filters.type) params.type = filters.type;
+      if (filters.difficulty) params.difficulty = filters.difficulty;
+      if (filters.platform) params.platform = filters.platform;
+
+      const response = await simulationsAPI.getAll(params);
+      setSimulations(response.data.simulations || []);
+
+    } catch (error) {
+      console.error('Error fetching simulations:', error);
+      const { message } = apiUtils.handleError(error);
+      setError(message);
+      setSimulations([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getColorClasses = (color) => {
-    const colorMap = {
-      blue: 'from-blue-500 to-blue-600',
-      green: 'from-green-500 to-green-600',
-      purple: 'from-purple-500 to-purple-600',
-      orange: 'from-orange-500 to-orange-600',
-      red: 'from-red-500 to-red-600',
-      indigo: 'from-indigo-500 to-indigo-600'
-    };
-    return colorMap[color] || 'from-gray-500 to-gray-600';
+  const handleFilterChange = (filterType, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+  };
+
+  const getDifficultyColor = (difficulty) => {
+    switch (difficulty) {
+      case 'beginner': return 'bg-green-100 text-green-800';
+      case 'intermediate': return 'bg-yellow-100 text-yellow-800';
+      case 'advanced': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getTypeIcon = (type) => {
+    switch (type) {
+      case 'sms-call': return '📱';
+      case 'sms-website-call': return '🌐';
+      case 'email-phishing': return '📧';
+      case 'voice-phishing': return '📞';
+      case 'social-media': return '📱';
+      case 'wallet-phishing': return '💰';
+      default: return '🎯';
+    }
+  };
+
+  const getPlatformIcon = (platform) => {
+    switch (platform) {
+      case 'metamask': return '🦊';
+      case 'binance': return '📊';
+      case 'trust-wallet': return '🛡️';
+      case 'coinbase': return '🪙';
+      case 'paypal': return '💳';
+      case 'bank': return '🏦';
+      case 'social-media': return '📱';
+      default: return '🌐';
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading simulations...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="spinner"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      <div className="container py-8">
-        {/* Header Section */}
-        <div className="mb-12">
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl">
-              <span className="text-white text-2xl font-bold">🎯</span>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="max-w-7xl mx-auto p-6">
+        <PageHeader 
+          title="Phishing Simulations" 
+          subtitle="Test your security awareness with realistic phishing scenarios"
+          icon="target"
+          className="mb-8"
+        />
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-8">
+            <div className="text-red-600 text-lg font-semibold mb-2">Error Loading Simulations</div>
+            <div className="text-red-500 mb-4">{error}</div>
+            <button 
+              onClick={fetchSimulations} 
+              className="btn btn-primary"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter Simulations</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+              <select 
+                value={filters.type} 
+                onChange={(e) => handleFilterChange('type', e.target.value)}
+                className="form-control"
+              >
+                <option value="">All Types</option>
+                <option value="sms-call">SMS + Call</option>
+                <option value="sms-website-call">SMS + Website + Call</option>
+                <option value="email-phishing">Email Phishing</option>
+                <option value="voice-phishing">Voice Phishing</option>
+                <option value="social-media">Social Media</option>
+                <option value="wallet-phishing">Wallet Phishing</option>
+              </select>
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                <span className="gradient-text">Simulations</span>
-              </h1>
-              <p className="text-xl text-gray-600">
-                Practice with realistic phishing scenarios to improve your cybersecurity awareness
-              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Difficulty</label>
+              <select 
+                value={filters.difficulty} 
+                onChange={(e) => handleFilterChange('difficulty', e.target.value)}
+                className="form-control"
+              >
+                <option value="">All Difficulties</option>
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
             </div>
-          </div>
-        </div>
-
-        {/* Stats Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="card text-center">
-            <div className="text-3xl font-bold gradient-text mb-2">{simulations.length}</div>
-            <div className="text-gray-600">Total Simulations</div>
-          </div>
-          <div className="card text-center">
-            <div className="text-3xl font-bold gradient-text mb-2">
-              {simulations.filter(s => s.completed).length}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
+              <select 
+                value={filters.platform} 
+                onChange={(e) => handleFilterChange('platform', e.target.value)}
+                className="form-control"
+              >
+                <option value="">All Platforms</option>
+                <option value="metamask">MetaMask</option>
+                <option value="binance">Binance</option>
+                <option value="trust-wallet">Trust Wallet</option>
+                <option value="coinbase">Coinbase</option>
+                <option value="paypal">PayPal</option>
+                <option value="bank">Bank</option>
+                <option value="social-media">Social Media</option>
+                <option value="generic">Generic</option>
+              </select>
             </div>
-            <div className="text-gray-600">Completed</div>
-          </div>
-          <div className="card text-center">
-            <div className="text-3xl font-bold gradient-text mb-2">
-              {Math.round((simulations.filter(s => s.completed).length / simulations.length) * 100)}%
-            </div>
-            <div className="text-gray-600">Completion Rate</div>
           </div>
         </div>
 
         {/* Simulations Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {simulations.map((simulation) => (
-            <div key={simulation.id} className="card group hover:scale-105 transition-all duration-300">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 bg-gradient-to-br ${getColorClasses(simulation.color)} rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300`}>
-                  <span className="text-2xl">{simulation.icon}</span>
-                </div>
-                {simulation.completed && (
-                  <div className="badge badge-success">
-                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    Completed
-                  </div>
-                )}
-              </div>
-              
-              {/* Content */}
-              <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
-                {simulation.title}
-              </h3>
-              
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                {simulation.description}
-              </p>
-              
-              {/* Meta Info */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-2">
-                  <span className={`badge badge-${getDifficultyColor(simulation.difficulty)}`}>
-                    {simulation.difficulty}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1 text-gray-500">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="text-sm">{simulation.duration}</span>
-                </div>
-              </div>
-              
-              {/* Action Button */}
-              <Link
-                to={`/simulations/${simulation.id}`}
-                className={`btn w-full ${simulation.completed ? 'btn-secondary' : 'btn-primary'} group-hover:scale-105 transition-transform duration-300`}
+        {simulations.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-gray-400 text-6xl mb-4">🎯</div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Simulations Found</h3>
+            <p className="text-gray-600 mb-6">
+              {error ? 'There was an error loading simulations.' : 'No simulations match your current filters.'}
+            </p>
+            {!error && (
+              <button 
+                onClick={() => setFilters({ type: '', difficulty: '', platform: '' })}
+                className="btn btn-primary"
               >
-                {simulation.completed ? (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Review Simulation
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
+                Clear Filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {simulations.map((simulation) => (
+              <ModuleCard
+                key={simulation._id}
+                title={simulation.title}
+                description={simulation.description}
+                difficulty={simulation.difficulty}
+                duration={`${simulation.estimatedDuration || 15} min`}
+                icon={getTypeIcon(simulation.type)}
+                tags={[
+                  { text: simulation.type.replace('-', ' '), color: 'blue' },
+                  { text: simulation.targetPlatform, color: 'green' }
+                ]}
+                stats={{
+                  successRate: simulation.successRate || 0,
+                  totalAttempts: simulation.totalAttempts || 0,
+                  averageScore: simulation.averageScore || 0
+                }}
+                action={
+                  <Link 
+                    to={`/simulations/${simulation._id}`}
+                    className="btn btn-primary w-full"
+                  >
                     Start Simulation
-                  </>
-                )}
-              </Link>
-            </div>
-          ))}
-        </div>
-
-        {/* Empty State */}
-        {simulations.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-blue-200 rounded-3xl flex items-center justify-center mx-auto mb-6">
-              <span className="text-4xl">🎯</span>
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Simulations Available</h3>
-            <p className="text-gray-600 mb-6">Check back later for new cybersecurity training scenarios.</p>
+                  </Link>
+                }
+                className="h-full"
+              />
+            ))}
           </div>
         )}
+
+        {/* Educational Note */}
+        <div className="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <div className="flex items-start">
+            <div className="text-blue-600 text-2xl mr-4">💡</div>
+            <div>
+              <h3 className="text-lg font-semibold text-blue-900 mb-2">About These Simulations</h3>
+              <p className="text-blue-800 mb-3">
+                These simulations are designed to test your ability to recognize and respond to real-world phishing attempts. 
+                They use realistic scenarios that you might encounter in your daily digital life.
+              </p>
+              <ul className="text-blue-800 text-sm space-y-1">
+                <li>• <strong>Beginner:</strong> Basic phishing techniques with obvious red flags</li>
+                <li>• <strong>Intermediate:</strong> More sophisticated attacks with subtle indicators</li>
+                <li>• <strong>Advanced:</strong> Highly convincing scenarios requiring careful analysis</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

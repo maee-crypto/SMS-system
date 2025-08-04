@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useState, useEffect, useContext } from 'react';
+import { Link } from 'react-router-dom';
+import { AuthContext } from '../contexts/AuthContext';
+import { simulationsAPI, analyticsAPI } from '../services/api';
+import { apiUtils } from '../services/api';
 import PageHeader from '../components/ui/PageHeader';
 import StatsOverview from '../components/dashboard/StatsOverview';
 import QuickActions from '../components/dashboard/QuickActions';
@@ -7,92 +10,139 @@ import LearningResources from '../components/dashboard/LearningResources';
 import RecentActivity from '../components/dashboard/RecentActivity';
 
 const Dashboard = () => {
-  const { user } = useAuth();
-  const [stats, setStats] = useState({
-    totalSimulations: 0,
-    completedSimulations: 0,
-    averageScore: 0,
+  const { user } = useContext(AuthContext);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState({
+    stats: {
+      totalSimulations: 0,
+      completedSimulations: 0,
+      averageScore: 0,
+      currentStreak: 0
+    },
+    simulations: [],
     recentActivity: []
   });
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch user stats
-    const fetchStats = async () => {
+    const fetchDashboardData = async () => {
       try {
-        // This would be replaced with actual API calls
-        setStats({
-          totalSimulations: 5,
-          completedSimulations: 3,
-          averageScore: 75,
-          recentActivity: [
-            { 
-              id: 1, 
-              type: 'simulation', 
-              title: 'MetaMask Security Alert', 
-              score: 80, 
-              date: '2024-01-15', 
-              status: 'completed',
-              duration: '15 min'
-            },
-            { 
-              id: 2, 
-              type: 'simulation', 
-              title: 'Bank Login Verification', 
-              score: 70, 
-              date: '2024-01-14', 
-              status: 'completed',
-              duration: '20 min'
-            },
-            { 
-              id: 3, 
-              type: 'simulation', 
-              title: 'Email Phishing Test', 
-              score: 85, 
-              date: '2024-01-13', 
-              status: 'completed',
-              duration: '12 min'
-            }
-          ]
+        setLoading(true);
+        setError(null);
+
+        // Fetch simulations
+        const simulationsResponse = await simulationsAPI.getAll({ limit: 5 });
+        const simulations = simulationsResponse.data.simulations || [];
+
+        // Fetch user stats
+        const statsResponse = await analyticsAPI.getUserStats();
+        const stats = statsResponse.data || {
+          totalSimulations: 0,
+          completedSimulations: 0,
+          averageScore: 0,
+          currentStreak: 0
+        };
+
+        // Fetch recent activity
+        const activityResponse = await analyticsAPI.getLearningProgress();
+        const recentActivity = activityResponse.data?.recentActivity || [];
+
+        setDashboardData({
+          stats,
+          simulations,
+          recentActivity
         });
+
       } catch (error) {
-        console.error('Error fetching stats:', error);
+        console.error('Error fetching dashboard data:', error);
+        const { message } = apiUtils.handleError(error);
+        setError(message);
+        
+        // Set fallback data
+        setDashboardData({
+          stats: {
+            totalSimulations: 0,
+            completedSimulations: 0,
+            averageScore: 0,
+            currentStreak: 0
+          },
+          simulations: [],
+          recentActivity: []
+        });
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStats();
-  }, []);
+    if (user) {
+      fetchDashboardData();
+    }
+  }, [user]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading your dashboard...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+        <div className="max-w-7xl mx-auto">
+          <PageHeader 
+            title="Dashboard" 
+            subtitle="Welcome back to your security training dashboard"
+            icon="shield"
+            className="mb-8"
+          />
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <div className="text-red-600 text-lg font-semibold mb-2">Error Loading Dashboard</div>
+            <div className="text-red-500 mb-4">{error}</div>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="btn btn-primary"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        <PageHeader
-          title={`Welcome back, ${user?.username || 'Security Champion'}!`}
-          subtitle="Continue your cybersecurity training journey"
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="max-w-7xl mx-auto p-6">
+        <PageHeader 
+          title="Dashboard" 
+          subtitle={`Welcome back, ${user?.username || 'User'}! Ready to enhance your security awareness?`}
           icon="shield"
+          className="mb-8"
         />
 
-        <StatsOverview stats={stats} loading={loading} />
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-          <QuickActions />
-          <LearningResources />
+        {/* Stats Overview */}
+        <div className="mb-8">
+          <StatsOverview stats={dashboardData.stats} />
         </div>
 
-        <RecentActivity activities={stats.recentActivity} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Quick Actions */}
+          <div className="lg:col-span-2">
+            <QuickActions simulations={dashboardData.simulations} />
+          </div>
+
+          {/* Learning Resources */}
+          <div>
+            <LearningResources />
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="mt-8">
+          <RecentActivity activities={dashboardData.recentActivity} />
+        </div>
       </div>
     </div>
   );
