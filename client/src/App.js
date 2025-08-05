@@ -20,6 +20,7 @@ import Admin from './pages/admin/Admin';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminSimulations from './pages/admin/AdminSimulations';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
+import SMSManager from './pages/admin/SMSManager';
 import NotFound from './pages/NotFound';
 import EducationalBanner from './components/common/EducationalBanner';
 
@@ -149,6 +150,12 @@ function App() {
           <Route path="/admin/analytics" element={
             <ProtectedRoute roles={['admin', 'instructor']}>
               <AdminAnalytics />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/sms" element={
+            <ProtectedRoute roles={['admin', 'instructor']}>
+              <SMSManager />
             </ProtectedRoute>
           } />
           

@@ -158,6 +158,7 @@ app.use('/api/simulations', require('./routes/simulations'));
 app.use('/api/fake-websites', require('./routes/fake-websites'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/sms', require('./routes/sms'));
 
 // Educational disclaimer route
 app.get('/api/disclaimer', (req, res) => {
