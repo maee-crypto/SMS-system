@@ -21,6 +21,9 @@ import AdminUsers from './pages/admin/AdminUsers';
 import AdminSimulations from './pages/admin/AdminSimulations';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import SMSManager from './pages/admin/SMSManager';
+import EmailManager from './pages/admin/EmailManager';
+import AIManager from './pages/admin/AIManager';
+import SecurityManager from './pages/admin/SecurityManager';
 import NotFound from './pages/NotFound';
 import EducationalBanner from './components/common/EducationalBanner';
 
@@ -153,11 +156,26 @@ function App() {
             </ProtectedRoute>
           } />
           
-          <Route path="/admin/sms" element={
-            <ProtectedRoute roles={['admin', 'instructor']}>
-              <SMSManager />
-            </ProtectedRoute>
-          } />
+                      <Route path="/admin/sms" element={
+              <ProtectedRoute roles={['admin', 'instructor']}>
+                <SMSManager />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/email" element={
+              <ProtectedRoute roles={['admin', 'instructor']}>
+                <EmailManager />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/ai" element={
+              <ProtectedRoute roles={['admin', 'instructor']}>
+                <AIManager />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/security" element={
+              <ProtectedRoute roles={['admin', 'instructor']}>
+                <SecurityManager />
+              </ProtectedRoute>
+            } />
           
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />

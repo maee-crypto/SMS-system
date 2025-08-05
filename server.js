@@ -160,6 +160,11 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/sms', require('./routes/sms'));
 
+// Real Integration Routes
+app.use('/api/email', require('./routes/email')); // SendGrid Email
+app.use('/api/ai', require('./routes/ai')); // OpenAI AI
+app.use('/api/security', require('./routes/security')); // reCAPTCHA + 2FA
+
 // Educational disclaimer route
 app.get('/api/disclaimer', (req, res) => {
   res.json({
