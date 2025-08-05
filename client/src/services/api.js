@@ -66,11 +66,23 @@ export const analyticsAPI = {
 
 // Admin API
 export const adminAPI = {
+  // User Management
   getUsers: (params = {}) => api.get('/admin/users', { params }),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
-  getSystemStats: () => api.get('/admin/system-stats'),
-  getSimulationStats: () => api.get('/admin/simulation-stats'),
+  
+  // Analytics
+  getSystemStats: (params = {}) => api.get('/admin/system-stats', { params }),
+  getUserStats: (params = {}) => api.get('/admin/user-stats', { params }),
+  getSimulationStats: (params = {}) => api.get('/admin/simulation-stats', { params }),
+  getSecurityMetrics: (params = {}) => api.get('/admin/security-metrics', { params }),
+  getPerformanceMetrics: (params = {}) => api.get('/admin/performance-metrics', { params }),
+  
+  // Simulation Management
+  getSimulations: (params = {}) => api.get('/admin/simulations', { params }),
+  createSimulation: (data) => api.post('/admin/simulations', data),
+  updateSimulation: (id, data) => api.put(`/admin/simulations/${id}`, data),
+  deleteSimulation: (id) => api.delete(`/admin/simulations/${id}`),
 };
 
 // Educational Modules API

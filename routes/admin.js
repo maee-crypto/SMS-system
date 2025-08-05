@@ -313,52 +313,511 @@ router.post('/users/bulk', [
 });
 
 // System statistics
-router.get('/stats', async (req, res) => {
+router.get('/system-stats', async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
-    const activeUsers = await User.countDocuments({ isActive: true });
-    const totalSimulations = await Simulation.countDocuments();
-    const activeSimulations = await Simulation.countDocuments({ isActive: true });
-    const totalSessions = await Session.countDocuments();
-    const completedSessions = await Session.countDocuments({ status: 'completed' });
+    const { timeRange = '7d' } = req.query;
+    
+    // Calculate date range
+    const now = new Date();
+    const startDate = new Date();
+    const previousStartDate = new Date();
+    
+    switch (timeRange) {
+      case '1d':
+        startDate.setDate(now.getDate() - 1);
+        previousStartDate.setDate(now.getDate() - 2);
+        break;
+      case '7d':
+        startDate.setDate(now.getDate() - 7);
+        previousStartDate.setDate(now.getDate() - 14);
+        break;
+      case '30d':
+        startDate.setDate(now.getDate() - 30);
+        previousStartDate.setDate(now.getDate() - 60);
+        break;
+      case '90d':
+        startDate.setDate(now.getDate() - 90);
+        previousStartDate.setDate(now.getDate() - 180);
+        break;
+    }
 
-    // User roles distribution
+    // Current period stats
+    const totalUsers = await User.countDocuments();
+    const activeSessions = await Session.countDocuments({ 
+      status: 'active',
+      createdAt: { $gte: startDate }
+    });
+    const completedSimulations = await Session.countDocuments({ 
+      status: 'completed',
+      createdAt: { $gte: startDate }
+    });
+    
+    // Average score calculation
+    const sessionsWithScores = await Session.find({ 
+      status: 'completed',
+      score: { $exists: true },
+      createdAt: { $gte: startDate }
+    });
+    const averageScore = sessionsWithScores.length > 0 
+      ? Math.round(sessionsWithScores.reduce((sum, session) => sum + session.score, 0) / sessionsWithScores.length)
+      : 0;
+
+    // Previous period stats for comparison
+    const previousTotalUsers = await User.countDocuments({ createdAt: { $lt: startDate } });
+    const previousActiveSessions = await Session.countDocuments({ 
+      status: 'active',
+      createdAt: { $gte: previousStartDate, $lt: startDate }
+    });
+    const previousCompletedSimulations = await Session.countDocuments({ 
+      status: 'completed',
+      createdAt: { $gte: previousStartDate, $lt: startDate }
+    });
+    
+    const previousSessionsWithScores = await Session.find({ 
+      status: 'completed',
+      score: { $exists: true },
+      createdAt: { $gte: previousStartDate, $lt: startDate }
+    });
+    const previousAverageScore = previousSessionsWithScores.length > 0 
+      ? Math.round(previousSessionsWithScores.reduce((sum, session) => sum + session.score, 0) / previousSessionsWithScores.length)
+      : 0;
+
+    // Recent activity
+    const recentActivity = await Session.find({ createdAt: { $gte: startDate } })
+      .populate('userId', 'username')
+      .populate('simulationId', 'title')
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .then(sessions => sessions.map(session => ({
+        action: `Completed ${session.simulationId?.title || 'simulation'}`,
+        user: session.userId?.username || 'Unknown',
+        time: session.createdAt.toLocaleString()
+      })));
+
+    res.json({
+      totalUsers,
+      previousTotalUsers,
+      activeSessions,
+      previousActiveSessions,
+      completedSimulations,
+      previousCompletedSimulations,
+      averageScore,
+      previousAverageScore,
+      uptime: '99.9%',
+      avgResponseTime: '245ms',
+      errorRate: '0.1%',
+      recentActivity
+    });
+  } catch (error) {
+    console.error('System stats error:', error);
+    res.status(500).json({ error: 'Server error fetching system statistics' });
+  }
+});
+
+// User statistics
+router.get('/user-stats', async (req, res) => {
+  try {
+    const { timeRange = '7d' } = req.query;
+    
+    const now = new Date();
+    const startDate = new Date();
+    const previousStartDate = new Date();
+    
+    switch (timeRange) {
+      case '1d':
+        startDate.setDate(now.getDate() - 1);
+        previousStartDate.setDate(now.getDate() - 2);
+        break;
+      case '7d':
+        startDate.setDate(now.getDate() - 7);
+        previousStartDate.setDate(now.getDate() - 14);
+        break;
+      case '30d':
+        startDate.setDate(now.getDate() - 30);
+        previousStartDate.setDate(now.getDate() - 60);
+        break;
+      case '90d':
+        startDate.setDate(now.getDate() - 90);
+        previousStartDate.setDate(now.getDate() - 180);
+        break;
+    }
+
+    // Current period
+    const newRegistrations = await User.countDocuments({ createdAt: { $gte: startDate } });
+    const activeUsers = await Session.distinct('userId', { createdAt: { $gte: startDate } });
+    
+    // Previous period
+    const previousNewRegistrations = await User.countDocuments({ 
+      createdAt: { $gte: previousStartDate, $lt: startDate } 
+    });
+    const previousActiveUsers = await Session.distinct('userId', { 
+      createdAt: { $gte: previousStartDate, $lt: startDate } 
+    });
+
+    // Role distribution
     const roleDistribution = await User.aggregate([
       { $group: { _id: '$role', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
 
-    // Recent activity (last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    const recentSessions = await Session.countDocuments({
-      createdAt: { $gte: sevenDaysAgo }
-    });
+    // Organization distribution
+    const organizationDistribution = await User.aggregate([
+      { $match: { organization: { $exists: true, $ne: '' } } },
+      { $group: { _id: '$organization', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 }
+    ]);
 
-    const recentUsers = await User.countDocuments({
-      createdAt: { $gte: sevenDaysAgo }
-    });
+    // Retention rate calculation (simplified)
+    const retentionRate = 85; // This would be calculated based on user return patterns
+    const previousRetentionRate = 82;
 
     res.json({
-      overview: {
-        totalUsers,
-        activeUsers,
-        totalSimulations,
-        activeSimulations,
-        totalSessions,
-        completedSessions,
-        completionRate: totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0
-      },
-      roleDistribution,
-      recentActivity: {
-        sessions: recentSessions,
-        newUsers: recentUsers
-      }
+      newRegistrations,
+      previousNewRegistrations,
+      activeUsers: activeUsers.length,
+      previousActiveUsers: previousActiveUsers.length,
+      retentionRate,
+      previousRetentionRate,
+      roleDistribution: roleDistribution.map(r => ({ role: r._id, count: r.count })),
+      organizationDistribution: organizationDistribution.map(o => ({ 
+        organization: o._id, 
+        count: o.count 
+      }))
     });
   } catch (error) {
-    console.error('System stats error:', error);
-    res.status(500).json({ error: 'Server error fetching system statistics' });
+    console.error('User stats error:', error);
+    res.status(500).json({ error: 'Server error fetching user statistics' });
+  }
+});
+
+// Simulation statistics
+router.get('/simulation-stats', async (req, res) => {
+  try {
+    const { timeRange = '7d' } = req.query;
+    
+    const now = new Date();
+    const startDate = new Date();
+    const previousStartDate = new Date();
+    
+    switch (timeRange) {
+      case '1d':
+        startDate.setDate(now.getDate() - 1);
+        previousStartDate.setDate(now.getDate() - 2);
+        break;
+      case '7d':
+        startDate.setDate(now.getDate() - 7);
+        previousStartDate.setDate(now.getDate() - 14);
+        break;
+      case '30d':
+        startDate.setDate(now.getDate() - 30);
+        previousStartDate.setDate(now.getDate() - 60);
+        break;
+      case '90d':
+        startDate.setDate(now.getDate() - 90);
+        previousStartDate.setDate(now.getDate() - 180);
+        break;
+    }
+
+    // Current period
+    const totalSimulations = await Simulation.countDocuments();
+    const completedSessions = await Session.countDocuments({ 
+      status: 'completed',
+      createdAt: { $gte: startDate }
+    });
+    const totalSessions = await Session.countDocuments({ createdAt: { $gte: startDate } });
+    const successRate = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
+    
+    // Average completion time
+    const sessionsWithTime = await Session.find({ 
+      status: 'completed',
+      timeSpent: { $exists: true },
+      createdAt: { $gte: startDate }
+    });
+    const avgCompletionTime = sessionsWithTime.length > 0 
+      ? Math.round(sessionsWithTime.reduce((sum, session) => sum + session.timeSpent, 0) / sessionsWithTime.length / 60)
+      : 0;
+
+    // Previous period
+    const previousCompletedSessions = await Session.countDocuments({ 
+      status: 'completed',
+      createdAt: { $gte: previousStartDate, $lt: startDate }
+    });
+    const previousTotalSessions = await Session.countDocuments({ 
+      createdAt: { $gte: previousStartDate, $lt: startDate }
+    });
+    const previousSuccessRate = previousTotalSessions > 0 
+      ? Math.round((previousCompletedSessions / previousTotalSessions) * 100) 
+      : 0;
+    
+    const previousSessionsWithTime = await Session.find({ 
+      status: 'completed',
+      timeSpent: { $exists: true },
+      createdAt: { $gte: previousStartDate, $lt: startDate }
+    });
+    const previousAvgCompletionTime = previousSessionsWithTime.length > 0 
+      ? Math.round(previousSessionsWithTime.reduce((sum, session) => sum + session.timeSpent, 0) / previousSessionsWithTime.length / 60)
+      : 0;
+
+    // Performance by type
+    const performanceByType = await Session.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      { $lookup: { from: 'simulations', localField: 'simulationId', foreignField: '_id', as: 'simulation' } },
+      { $unwind: '$simulation' },
+      { $group: { 
+        _id: '$simulation.type', 
+        total: { $sum: 1 },
+        completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }
+      }},
+      { $project: { 
+        type: '$_id', 
+        completionRate: { $multiply: [{ $divide: ['$completed', '$total'] }, 100] }
+      }}
+    ]);
+
+    res.json({
+      totalSimulations,
+      previousTotalSimulations: totalSimulations,
+      successRate,
+      previousSuccessRate,
+      avgCompletionTime,
+      previousAvgCompletionTime,
+      performanceByType: performanceByType.map(p => ({ 
+        type: p.type, 
+        completionRate: Math.round(p.completionRate) 
+      }))
+    });
+  } catch (error) {
+    console.error('Simulation stats error:', error);
+    res.status(500).json({ error: 'Server error fetching simulation statistics' });
+  }
+});
+
+// Security metrics
+router.get('/security-metrics', async (req, res) => {
+  try {
+    const { timeRange = '7d' } = req.query;
+    
+    const now = new Date();
+    const startDate = new Date();
+    const previousStartDate = new Date();
+    
+    switch (timeRange) {
+      case '1d':
+        startDate.setDate(now.getDate() - 1);
+        previousStartDate.setDate(now.getDate() - 2);
+        break;
+      case '7d':
+        startDate.setDate(now.getDate() - 7);
+        previousStartDate.setDate(now.getDate() - 14);
+        break;
+      case '30d':
+        startDate.setDate(now.getDate() - 30);
+        previousStartDate.setDate(now.getDate() - 60);
+        break;
+      case '90d':
+        startDate.setDate(now.getDate() - 90);
+        previousStartDate.setDate(now.getDate() - 180);
+        break;
+    }
+
+    // Mock security data (in real implementation, this would come from security logs)
+    const failedLogins = Math.floor(Math.random() * 50) + 10;
+    const previousFailedLogins = Math.floor(Math.random() * 50) + 10;
+    const suspiciousActivities = Math.floor(Math.random() * 20) + 5;
+    const previousSuspiciousActivities = Math.floor(Math.random() * 20) + 5;
+    const securityScore = Math.floor(Math.random() * 20) + 80;
+    const previousSecurityScore = Math.floor(Math.random() * 20) + 80;
+
+    // Mock security alerts
+    const recentAlerts = [
+      {
+        title: 'Multiple failed login attempts',
+        description: 'User account locked due to multiple failed login attempts',
+        severity: 'medium',
+        timestamp: new Date().toLocaleString()
+      },
+      {
+        title: 'Suspicious IP activity',
+        description: 'Unusual login pattern detected from new IP address',
+        severity: 'low',
+        timestamp: new Date(Date.now() - 3600000).toLocaleString()
+      }
+    ];
+
+    res.json({
+      failedLogins,
+      previousFailedLogins,
+      suspiciousActivities,
+      previousSuspiciousActivities,
+      securityScore,
+      previousSecurityScore,
+      recentAlerts
+    });
+  } catch (error) {
+    console.error('Security metrics error:', error);
+    res.status(500).json({ error: 'Server error fetching security metrics' });
+  }
+});
+
+// Performance metrics
+router.get('/performance-metrics', async (req, res) => {
+  try {
+    const { timeRange = '7d' } = req.query;
+    
+    const now = new Date();
+    const startDate = new Date();
+    const previousStartDate = new Date();
+    
+    switch (timeRange) {
+      case '1d':
+        startDate.setDate(now.getDate() - 1);
+        previousStartDate.setDate(now.getDate() - 2);
+        break;
+      case '7d':
+        startDate.setDate(now.getDate() - 7);
+        previousStartDate.setDate(now.getDate() - 14);
+        break;
+      case '30d':
+        startDate.setDate(now.getDate() - 30);
+        previousStartDate.setDate(now.getDate() - 60);
+        break;
+      case '90d':
+        startDate.setDate(now.getDate() - 90);
+        previousStartDate.setDate(now.getDate() - 180);
+        break;
+    }
+
+    // Mock performance data
+    const avgApiResponseTime = Math.floor(Math.random() * 100) + 200;
+    const previousAvgApiResponseTime = Math.floor(Math.random() * 100) + 200;
+    const totalQueries = Math.floor(Math.random() * 10000) + 5000;
+    const previousTotalQueries = Math.floor(Math.random() * 10000) + 5000;
+    const memoryUsage = Math.floor(Math.random() * 20) + 60;
+    const previousMemoryUsage = Math.floor(Math.random() * 20) + 60;
+
+    res.json({
+      avgApiResponseTime,
+      previousAvgApiResponseTime,
+      totalQueries,
+      previousTotalQueries,
+      memoryUsage,
+      previousMemoryUsage
+    });
+  } catch (error) {
+    console.error('Performance metrics error:', error);
+    res.status(500).json({ error: 'Server error fetching performance metrics' });
+  }
+});
+
+// Get all simulations for admin
+router.get('/simulations', async (req, res) => {
+  try {
+    const simulations = await Simulation.find()
+      .populate('createdBy', 'username')
+      .sort({ createdAt: -1 });
+
+    res.json({ simulations });
+  } catch (error) {
+    console.error('Get simulations error:', error);
+    res.status(500).json({ error: 'Server error fetching simulations' });
+  }
+});
+
+// Create new simulation
+router.post('/simulations', [
+  body('title').trim().isLength({ min: 3, max: 100 })
+    .withMessage('Title must be between 3 and 100 characters'),
+  body('description').trim().isLength({ min: 10, max: 500 })
+    .withMessage('Description must be between 10 and 500 characters'),
+  body('type').isIn(['sms-phishing', 'email-phishing', 'voice-phishing', 'social-media', 'wallet-phishing'])
+    .withMessage('Invalid simulation type'),
+  body('difficulty').isIn(['beginner', 'intermediate', 'advanced'])
+    .withMessage('Invalid difficulty level'),
+  body('targetPlatform').isIn(['general', 'metamask', 'binance', 'paypal', 'bank'])
+    .withMessage('Invalid target platform')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const simulationData = {
+      ...req.body,
+      createdBy: req.user.id
+    };
+
+    const simulation = new Simulation(simulationData);
+    await simulation.save();
+
+    res.status(201).json({
+      message: 'Simulation created successfully',
+      simulation
+    });
+  } catch (error) {
+    console.error('Create simulation error:', error);
+    res.status(500).json({ error: 'Server error creating simulation' });
+  }
+});
+
+// Update simulation
+router.put('/simulations/:id', [
+  body('title').optional().trim().isLength({ min: 3, max: 100 })
+    .withMessage('Title must be between 3 and 100 characters'),
+  body('description').optional().trim().isLength({ min: 10, max: 500 })
+    .withMessage('Description must be between 10 and 500 characters'),
+  body('type').optional().isIn(['sms-phishing', 'email-phishing', 'voice-phishing', 'social-media', 'wallet-phishing'])
+    .withMessage('Invalid simulation type'),
+  body('difficulty').optional().isIn(['beginner', 'intermediate', 'advanced'])
+    .withMessage('Invalid difficulty level'),
+  body('targetPlatform').optional().isIn(['general', 'metamask', 'binance', 'paypal', 'bank'])
+    .withMessage('Invalid target platform')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const simulation = await Simulation.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    if (!simulation) {
+      return res.status(404).json({ error: 'Simulation not found' });
+    }
+
+    res.json({
+      message: 'Simulation updated successfully',
+      simulation
+    });
+  } catch (error) {
+    console.error('Update simulation error:', error);
+    res.status(500).json({ error: 'Server error updating simulation' });
+  }
+});
+
+// Delete simulation
+router.delete('/simulations/:id', async (req, res) => {
+  try {
+    const simulation = await Simulation.findByIdAndDelete(req.params.id);
+    
+    if (!simulation) {
+      return res.status(404).json({ error: 'Simulation not found' });
+    }
+
+    // Also delete related sessions
+    await Session.deleteMany({ simulationId: req.params.id });
+
+    res.json({
+      message: 'Simulation deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete simulation error:', error);
+    res.status(500).json({ error: 'Server error deleting simulation' });
   }
 });
 
